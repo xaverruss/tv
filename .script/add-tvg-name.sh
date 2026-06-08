@@ -1,5 +1,5 @@
 #!/bin/bash
-# Fügt tvg-name Attribute in M3U-Dateien hinzu, basierend auf iptv-epg.org EPG.
+# Fügt tvg-id + tvg-name Attribute in M3U-Dateien hinzu, basierend auf iptv-epg.org EPG.
 # Aufruf: ./add-tvg-name.sh [m3u-datei ...]
 # Ohne Argument: verarbeitet alle .m3u Dateien im m3u/ Ordner
 
@@ -30,11 +30,23 @@ cnn|CNN International
 nhkworldjapan|NHK WORLD-JAPAN
 EOF
 
-# Baue Mapping-Datei: normalisierter_Key|EPG-Name
-sed -n 's/.*<display-name[^>]*>\(.*\)<\/display-name>.*/\1/p' "$TMP_EPG" | while IFS= read -r name; do
-  clean_name=$(echo "$name" | sed 's/^DE - //')
+# Baue Mapping-Datei aus EPG: normalisierter_Key|tvg-id|tvg-name(voll)
+# tvg-id = channel id, tvg-name = display-name (mit "DE - " Prefix)
+sed -n '
+/channel id="/{
+  h
+  n
+  /display-name/{
+    H
+    x
+    s/.*channel id="\([^"]*\)".*\n.*<display-name[^>]*>\([^<]*\)<.*/\1|\2/
+    s/|DE - /|/
+    p
+  }
+}' "$TMP_EPG" | while IFS='|' read -r tvg_id display_name; do
+  clean_name="$display_name"
   normalized=$(echo "$clean_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')
-  echo "${normalized}|${clean_name}"
+  echo "${normalized}|${tvg_id}|${display_name}"
 done > "$TMP_MAP"
 
 total_epg=$(wc -l < "$TMP_MAP")
@@ -47,37 +59,27 @@ map_channel() {
   local normalized=$(echo "$clean" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')
 
   # 0. Manuelle Aliase prüfen
-  local alias_match=$(grep "^${normalized}" "$TMP_ALIAS" 2>/dev/null | cut -d'|' -f2 | head -1)
-  if [ -n "$alias_match" ]; then
-    echo "$alias_match"
-    return 0
-  fi
-  # Alias substring check
   while IFS='|' read -r alias_key alias_val; do
     if echo "$normalized" | grep -q "$alias_key" 2>/dev/null; then
-      echo "$alias_val"
-      return 0
+      local alias_match=$(grep "|${alias_val}$" "$TMP_MAP" 2>/dev/null | head -1)
+      if [ -n "$alias_match" ]; then
+        echo "$alias_match"
+        return 0
+      fi
     fi
   done < "$TMP_ALIAS"
 
-  # 1. Exakter Match
-  local match=$(grep "^${normalized}|" "$TMP_MAP" 2>/dev/null | head -1 | cut -d'|' -f2)
-  if [ -n "$match" ]; then
-    echo "$match"
+  # 1. Exakter Match auf normalisierten Namen
+  local line=$(grep "^${normalized}|" "$TMP_MAP" 2>/dev/null | head -1)
+  if [ -n "$line" ]; then
+    echo "$line"
     return 0
   fi
 
-  # 2. EPG-Name ist gleich dem M3U-Namen (ohne Prefix)
-  local epg_match=$(grep "|${normalized}$" "$TMP_MAP" 2>/dev/null | head -1 | cut -d'|' -f2)
-  if [ -n "$epg_match" ]; then
-    echo "$epg_match"
-    return 0
-  fi
-
-  # 3. EPG-Name enthält M3U-Namen oder umgekehrt (fuzzy)
-  while IFS='|' read -r norm_key epg_orig; do
+  # 2. Fuzzy: EPG-Name enthält M3U-Namen oder umgekehrt
+  while IFS='|' read -r norm_key tvg_id_orig display_name_orig; do
     if [[ "$norm_key" == *"$normalized"* || "$normalized" == *"$norm_key"* ]]; then
-      echo "$epg_orig"
+      echo "${norm_key}|${tvg_id_orig}|${display_name_orig}"
       return 0
     fi
   done < "$TMP_MAP"
@@ -99,13 +101,16 @@ process_file() {
   echo "=== $input ==="
 
   while IFS= read -r line; do
-    if [[ "$line" =~ ^#EXTINF:0, ]]; then
+    if [[ "$line" =~ ^#EXTINF: ]]; then
       modified=$((modified + 1))
-      ch_name="${line#*#EXTINF:0,}"
+      # Channel-Name aus EXTINF extrahieren (nach letztem Komma)
+      ch_name="${line##*,}"
       ch_clean=$(echo "$ch_name" | sed 's/[[:space:]]*$//')
 
-      if tvg_name=$(map_channel "$ch_clean"); then
-        echo "#EXTINF:0 tvg-name=\"$tvg_name\",$ch_clean" >> "$tmp_out"
+      if map_result=$(map_channel "$ch_clean"); then
+        tvg_id=$(echo "$map_result" | cut -d'|' -f2)
+        tvg_name=$(echo "$map_result" | cut -d'|' -f3)
+        echo "#EXTINF:0 tvg-id=\"$tvg_id\" tvg-name=\"$tvg_name\",$ch_clean" >> "$tmp_out"
         matched=$((matched + 1))
       else
         echo "#EXTINF:0,$ch_clean" >> "$tmp_out"
