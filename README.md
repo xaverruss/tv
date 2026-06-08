@@ -39,7 +39,7 @@ Die Playlists enthalten keine EPG-URLs. Für eine Programmübersicht kann eine e
 
 | Quelle | URL | Sender | Hinweis |
 |--------|-----|--------|---------|
-| **iptv-epg.org** | `https://iptv-epg.org/files/epg-de.xml` | 422 deutsche Sender | **Beste Abdeckung** – hat fast alle Sender aus den Playlists (RTL, ProSieben, SAT.1, ZDF, ARD, etc.) |
+| **iptv-epg.org** | `https://iptv-epg.org/files/epg-de.xml` | 422 deutsche Sender | **Beste Abdeckung** – hat fast alle Sender aus den Playlists (Das Erste, ZDF, RTL, ProSieben, SAT.1, etc.) |
 | Open-EPG | `https://www.open-epg.com/files/germany3.xml.gz` | 334 deutsche Sender | Gute Alternative, 2-Tage-EPG |
 | electronic-research.de | `https://electronic-research.de/kodi/epg/epg.xml.gz` | ~198 Sender (DE + HR) | Auch Balkan-Sender, aber weniger deutsche Privatsender |
 
