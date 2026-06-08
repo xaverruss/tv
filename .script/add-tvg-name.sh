@@ -106,16 +106,19 @@ process_file() {
       modified=$((modified + 1))
       # Channel-Name aus EXTINF extrahieren (nach letztem Komma)
       ch_name="${line##*,}"
-      ch_clean=$(echo "$ch_name" | sed 's/[[:space:]]*$//')
+      ch_raw=$(echo "$ch_name" | sed 's/[[:space:]]*$//')
+      # Suffixe wie HD, (eng) etc. fürs Matching entfernen
+      ch_clean=$(echo "$ch_raw" | sed 's/ *[Hh][Dd]$//; s/ *(eng)$//; s/ *(fre)$//; s/^://')
 
       if map_result=$(map_channel "$ch_clean"); then
         tvg_id=$(echo "$map_result" | cut -d'|' -f2)
-        tvg_name=$(echo "$map_result" | cut -d'|' -f3)
+        tvg_name=$(echo "$map_result" | cut -d'|' -f3 | sed 's/^DE - //')
+        # Als Display-Name den EPG-Namen ohne Prefix verwenden (HD etc. entfernt)
         echo "#EXTINF:0 tvg-id=\"$tvg_id\" tvg-name=\"$tvg_name\",$ch_clean" >> "$tmp_out"
         matched=$((matched + 1))
       else
-        echo "#EXTINF:0,$ch_clean" >> "$tmp_out"
-        echo "   ⚠ kein Match: $ch_clean"
+        echo "#EXTINF:0,$ch_raw" >> "$tmp_out"
+        echo "   ⚠ kein Match: $ch_raw"
         unmatched=$((unmatched + 1))
       fi
     else
