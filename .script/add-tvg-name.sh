@@ -19,6 +19,7 @@ echo "=== EPG von iptv-epg.org laden ..."
 curl -sL "$EPG_URL" -o "$TMP_EPG" || { echo "FEHLER: EPG nicht ladbar"; exit 1; }
 
 # Manuelle Aliase für nicht-triviale M3U↔EPG Namensunterschiede
+# Aliase: M3U-Keyword → EPG-clean-name (ohne "DE - ")
 cat > "$TMP_ALIAS" << 'EOF'
 aljazeeraint|Al Jazeera English
 bbcnews|BBC World
@@ -40,11 +41,10 @@ sed -n '
     H
     x
     s/.*channel id="\([^"]*\)".*\n.*<display-name[^>]*>\([^<]*\)<.*/\1|\2/
-    s/|DE - /|/
     p
   }
 }' "$TMP_EPG" | while IFS='|' read -r tvg_id display_name; do
-  clean_name="$display_name"
+  clean_name="${display_name#DE - }"
   normalized=$(echo "$clean_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')
   echo "${normalized}|${tvg_id}|${display_name}"
 done > "$TMP_MAP"
@@ -58,10 +58,11 @@ map_channel() {
   local clean=$(echo "$m3u_name" | sed 's/ *[Hh][Dd]$//; s/ *(eng)$//; s/ *(fre)$//; s/^://' | sed 's/[[:space:]]*$//')
   local normalized=$(echo "$clean" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')
 
-  # 0. Manuelle Aliase prüfen
+  # 0. Manuelle Aliase prüfen (mappen auf clean name, dann in TMP_MAP suchen)
   while IFS='|' read -r alias_key alias_val; do
     if echo "$normalized" | grep -q "$alias_key" 2>/dev/null; then
-      local alias_match=$(grep "|${alias_val}$" "$TMP_MAP" 2>/dev/null | head -1)
+      local alias_norm=$(echo "$alias_val" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')
+      local alias_match=$(grep "^${alias_norm}|" "$TMP_MAP" 2>/dev/null | head -1)
       if [ -n "$alias_match" ]; then
         echo "$alias_match"
         return 0
