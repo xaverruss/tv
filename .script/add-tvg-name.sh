@@ -113,9 +113,12 @@ process_file() {
       if map_result=$(map_channel "$ch_clean"); then
         tvg_id=$(echo "$map_result" | cut -d'|' -f2)
         display_full=$(echo "$map_result" | cut -d'|' -f3)
-        tvg_name="${display_full#DE - }"
-        # Display-Name = EPG-Name (exakte Schreibweise, ohne Prefix)
-        echo "#EXTINF:0 tvg-id=\"$tvg_id\" tvg-name=\"$tvg_name\",$tvg_name" >> "$tmp_out"
+        tvg_name="$display_full"
+        # Display-Name = EPG Clean-Name (ohne DE - Prefix)
+        clean_name="${display_full#DE - }"
+        # tvg-id ohne .de Suffix (manchen Viewern reicht der kurze Name)
+        short_id="${tvg_id%.de}"
+        echo "#EXTINF:0 tvg-id=\"$short_id\" tvg-name=\"$tvg_name\",$clean_name" >> "$tmp_out"
         matched=$((matched + 1))
       else
         echo "#EXTINF:0,$ch_raw" >> "$tmp_out"
