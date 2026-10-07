@@ -20,7 +20,20 @@ curl -sL "$EPG_URL" -o "$TMP_EPG" || { echo "FEHLER: EPG nicht ladbar"; exit 1; 
 
 # Manuelle Aliase für nicht-triviale M3U↔EPG Namensunterschiede
 # Aliase: M3U-Keyword → EPG-clean-name (ohne "DE - ")
+# Wert "SKIP" = bewusst kein EPG-Match (verhindert Fuzzy-Fehltreffer)
 cat > "$TMP_ALIAS" << 'EOF'
+wdr|WDR
+ndr|NDR
+brsd|BR
+hrfernsehen|hr
+qvc2|QVC ZWEI
+homegardentv|HGTV
+oktv|OK-TV Ludwigshafen
+vodafonetv|SKIP
+nickelodeon|SKIP
+hsetrend|SKIP
+hseextra|SKIP
+qvcstyle|SKIP
 aljazeeraint|Al Jazeera English
 bbcnews|BBC World
 dmf|Deutsches Musik Fernsehen
@@ -61,6 +74,10 @@ map_channel() {
   # 0. Manuelle Aliase prüfen (mappen auf clean name, dann in TMP_MAP suchen)
   while IFS='|' read -r alias_key alias_val; do
     if echo "$normalized" | grep -q "$alias_key" 2>/dev/null; then
+      # Bewusst kein EPG-Match gewünscht
+      if [ "$alias_val" = "SKIP" ]; then
+        return 2
+      fi
       local alias_norm=$(echo "$alias_val" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')
       local alias_match=$(grep "^${alias_norm}|" "$TMP_MAP" 2>/dev/null | head -1)
       if [ -n "$alias_match" ]; then
